@@ -3,12 +3,14 @@ from django.shortcuts import render, redirect
 # Create your views here.
 from django.views.generic import TemplateView
 
-from django.http import HttpResponseRedirect
+from django.http import HttpRequest
 
 from django import forms
 
 from django.views import View
+from .utils import ImageLocalStorage
 
+from .models import Product
 
 # Create your views here.
 class HomePageView(TemplateView):
@@ -51,18 +53,6 @@ class ContactPageView(TemplateView):
         return context
 
 
-class Product:
-    products = [
-        {"id": "1", "name": "TV", "description": "Best TV", "price": 100},
-        {"id": "2", "name": "iPhone", "description": "Best iPhone", "price": 200},
-        {
-            "id": "3",
-            "name": "Chromecast",
-            "description": "Best Chromecast",
-            "price": 10,
-        },
-        {"id": "4", "name": "Glasses", "description": "Best Glasses", "price": 101},
-    ]
 
 
 class ProductIndexView(View):
@@ -101,10 +91,10 @@ class ProductShowView(View):
         return render(request, self.template_name, viewData)
 
 
-class ProductForm(forms.Form):
-    name = forms.CharField(required=True)
-
-    price = forms.FloatField(required=True)
+class ProductForm(forms.ModelForm):
+    class Meta:
+        model = Product
+        fields = ["name", "price"]
 
     def clean_price(self):
         price = self.cleaned_data["price"]
@@ -133,6 +123,7 @@ class ProductCreateView(View):
         form = ProductForm(request.POST)
 
         if form.is_valid():
+            form.save()
             return render(request, "products/confim.html")
 
         else:
@@ -188,12 +179,29 @@ class CartView(View):
         request.session["cart_product_data"] = cart_product_data
         return redirect("cart_index")
 
-class CartRemoveAllView(View): 
 
-    def post(self, request): 
-        # Remove all products from cart in session 
-        if 'cart_product_data' in request.session: 
-            del request.session['cart_product_data'] 
-        return redirect('cart_index') 
+class CartRemoveAllView(View):
+    def post(self, request):
+        # Remove all products from cart in session
+        if "cart_product_data" in request.session:
+            del request.session["cart_product_data"]
+        return redirect("cart_index")
 
- 
+
+def ImageViewFactory(image_storage: ImageLocalStorage):
+    class ImageView(View):
+        template_name = "images/index.html"
+
+        def get(self, request):
+            image_url = request.session.get("image_url", "")
+
+            return render(request, self.template_name, {"image_url": image_url})
+
+        def post(self, request: HttpRequest):
+            image_url = image_storage.store(request)
+
+            request.session["image_url"] = image_url
+
+            return redirect("image_index")
+
+    return ImageView
